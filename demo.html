@@ -172,11 +172,18 @@
             <br>
           </div>
           <core-splitter direction="up"></core-splitter>
-          <div flex class="rel">
-            <fin-hypergrid class="abs" id="json-example">
-                <fin-hypergrid-behavior-json></fin-hypergrid-behavior-json>
-            </fin-hypergrid>
-          </div>
+          <div horizontal layout flex>
+              <div flex class="rel">
+                <fin-hypergrid class="abs" id="buy-grid">
+                    <fin-hypergrid-behavior-json></fin-hypergrid-behavior-json>
+                </fin-hypergrid>
+              </div>
+              <div flex class="rel">
+                <fin-hypergrid class="abs" id="sell-grid">
+                    <fin-hypergrid-behavior-json></fin-hypergrid-behavior-json>
+                </fin-hypergrid>
+              </div>
+           </div>
         </div>
         <div vertical layout>
           <div class="description">
@@ -370,7 +377,7 @@
     }
 
 
-  function MarketDepthGrid(grid) {
+  function MarketDepthGrid(grid,asc,columns) {
     this.data = [];
     this.map = {};
 
@@ -386,22 +393,23 @@
     var cellProvider = this.jsonModel.getCellProvider();
 
 
-     this.jsonModel.setColumns([
-         {
-             title: 'Quantity',
-             field: 'qty'
-         },
-         {
-             title: 'Price',
-             field: 'key'
-         }
-    ]);
+     this.jsonModel.setColumns(columns);
 
     //set the actual json row objects
     this.jsonModel.setData(this.data);
 
     //make the first row fixed;
     this.jsonModel.setFixedRowCount(1);
+
+    if (asc) {
+      this.sortFun = function(a,b) {
+        return a.key - b.key;
+      };
+    } else {
+      this.sortFun = function(a,b) {
+        return b.key - a.key;
+      };
+    }
   }
 
   MarketDepthGrid.prototype = {
@@ -434,9 +442,7 @@
                 break;
           };
 
-           this.data.sort(function(a,b) {
-               return b.key - a.key;
-           });
+          this.data.sort(this.sortFun);
 
           this.jsonModel.changed();
        }
@@ -447,11 +453,16 @@
     (function(){
 
         var STOCK = "SF_TECH";
+        //STOCK = "OS_C";
+
 
         document.addEventListener('polymer-ready', function() {
 
-            var buy = new MarketDepthGrid('#json-example');
-            //var sell = new MarketDepthGrid('#json-example-part2');
+            var qtyColumn = { title: 'Quantity', field: 'qty' };
+            var priceColumn = { title: 'Price', field: 'key' };
+
+            var buy = new MarketDepthGrid('#buy-grid',false,[qtyColumn,priceColumn]);
+            var sell = new MarketDepthGrid('#sell-grid',true,[priceColumn,qtyColumn]);
 
 
             var tabs = document.getElementsByTagName('paper-tabs')[0];
@@ -521,13 +532,13 @@
                 buySubscription.setRequestedSnapshot("yes");
                 buySubscription.addListener(buy);
 
-              /*  var sellSubscription = new Subscription("COMMAND",STOCK+"_SELLSIDE",["command", "key", "qty"]);
+                var sellSubscription = new Subscription("COMMAND",STOCK+"_SELLSIDE",["command", "key", "qty"]);
                 sellSubscription.setRequestedSnapshot("yes");
                 sellSubscription.addListener(sell);
-                */
+
 
                 client.subscribe(buySubscription);
-                //client.subscribe(sellSubscription);
+                client.subscribe(sellSubscription);
 
             });
 
@@ -537,11 +548,16 @@
 
 
     })();
-    //json-example stuff
+    //market depth stuff
     function toggleHiDPI() {
-        var button = document.querySelector('#hidpi-button');
-        var jsonGrid = document.querySelector('#json-example');
+
+        var jsonGrid = document.querySelector('#buy-grid');
         jsonGrid.toggleHiDPI();
+
+        jsonGrid = document.querySelector('#sell-grid');
+        jsonGrid.toggleHiDPI();
+
+        var button = document.querySelector('#hidpi-button');
         if (jsonGrid.isHiDPI()) {
             button.innerText = 'disable HiDPI';
         } else {
