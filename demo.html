@@ -346,42 +346,123 @@
 
     })();
 
+    if (!Array.prototype.findIndex) {
+        Array.prototype.findIndex = function(predicate) {
+        if (this == null) {
+          throw new TypeError('Array.prototype.findIndex called on null or undefined');
+        }
+        if (typeof predicate !== 'function') {
+          throw new TypeError('predicate must be a function');
+        }
+        var list = Object(this);
+        var length = list.length >>> 0;
+        var thisArg = arguments[1];
+        var value;
+
+        for (var i = 0; i < length; i++) {
+          value = list[i];
+          if (predicate.call(thisArg, value, i, list)) {
+            return i;
+          }
+        }
+        return -1;
+      };
+    }
+
+
+  function MarketDepthGrid(grid) {
+    this.data = [];
+    this.map = {};
+
+    //get ahold of our json grid example
+    var jsonGrid = document.querySelector(grid);
+
+
+    //get it's table model
+    this.jsonModel = jsonGrid.getBehavior();
+
+
+    //get the cell cellProvider for altering cell renderers
+    var cellProvider = this.jsonModel.getCellProvider();
+
+
+     this.jsonModel.setColumns([
+         {
+             title: 'Quantity',
+             field: 'qty'
+         },
+         {
+             title: 'Price',
+             field: 'key'
+         }
+    ]);
+
+    //set the actual json row objects
+    this.jsonModel.setData(this.data);
+
+    //make the first row fixed;
+    this.jsonModel.setFixedRowCount(1);
+  }
+
+  MarketDepthGrid.prototype = {
+      onItemUpdate: function(itemUpdate) {
+
+          var command = itemUpdate.getValue("command");
+          var key = Number(itemUpdate.getValue("key")); //make it anumber to help the sort
+          var qty = itemUpdate.getValue("qty");
+
+          switch(command) {
+              case "UPDATE":
+                if (this.map[key]) {
+                  this.map[key].qty = qty;
+                  break;
+                }
+                //else should not happen, let's do the ADD
+              case "ADD":
+
+                this.map[key] = {key: key, qty: qty};
+                this.data.push(this.map[key]);
+                break;
+              case "DELETE":
+                var index = this.data.findIndex(function(element) {
+                    return key == element.key;
+                });
+                if (index > -1) {
+                    this.data.splice(index,1);
+                } //else ??
+                delete(this.map[key]);
+                break;
+          };
+
+           this.data.sort(function(a,b) {
+               return b.key - a.key;
+           });
+
+          this.jsonModel.changed();
+       }
+  };
+
+
     //setup random data for the JSON tab example
     (function(){
 
-
-        //prepare model
-        var data = [];
+        var STOCK = "SF_TECH";
 
         document.addEventListener('polymer-ready', function() {
 
-            //get ahold of our json grid example
-            var jsonGrid = document.querySelector('#json-example');
+            var buy = new MarketDepthGrid('#json-example');
+            //var sell = new MarketDepthGrid('#json-example-part2');
 
-            //get it's table model
-            var jsonModel = jsonGrid.getBehavior();
 
-            //get the cell cellProvider for altering cell renderers
-            var cellProvider = jsonModel.getCellProvider();
+            var tabs = document.getElementsByTagName('paper-tabs')[0];
+            var tab = getParameterByName("tab");
+            if (tab) {
+                tabs.setAttribute('selected', tab);
+            }
 
-            jsonModel.setColumns([
-                 {
-                     title: 'Quantity',
-                     field: 'qty'
-                 },
-                 {
-                     title: 'Price',
-                     field: 'key'
-                 }
-            ]);
 
-            //set the actual json row objects
-            jsonModel.setData(data);
 
-            //make the first row fixed;
-            jsonModel.setFixedRowCount(1);
-
-            
+/*
 
             //all formatting and rendering per cell can be overridden in here
             cellProvider.getCell = function(config) {
@@ -424,54 +505,8 @@
                 renderer.config = config;
                 return renderer;
             };
+*/
 
-            jsonModel.getCursorAt = function(x,y) {
-                if (x === 1) {
-                    return 'pointer'
-                } else {
-                    return null;
-                }
-            };
-
-            jsonGrid.addFinEventListener('fin-cell-click', function(e){
-                var cell = e.detail.cell;
-                if (cell.x !== 1) {
-                    return;
-                }
-                alert('fin-cell-click at (' + cell.x + ', ' + cell.y + ')');
-            });
-            jsonGrid.addFinEventListener('fin-scroll-x', function(e){
-                console.log('fin-scroll-x ', e.detail.value);
-            });
-            jsonGrid.addFinEventListener('fin-scroll-y', function(e){
-                console.log('fin-scroll-y', e.detail.value);
-            });
-
-            // lets setup a cell update
-            // var g = document.querySelector('#json-example');
-            // var model = g.getBehavior();row = model.data[0];
-            // setInterval(function() { row.pets = Date.now()}, 100);
-            // setInterval(function() { g.repaintCell(2,0); }, 110);
-            var tabs = document.getElementsByTagName('paper-tabs')[0];
-            var tab = getParameterByName("tab");
-            if (tab) {
-                tabs.setAttribute('selected', tab);
-            }
-            var qTree = document.querySelector('#qtree-example');
-            // qTree.addEventListener('fin-grid-rendered', function(e) {
-            //   console.dir(qTree.getRenderedData());
-            // });
-            qTree.addFinEventListener('fin-selection-changed', function(e) {
-                console.dir('fin-selection-changed', qTree.getSelectedRow());
-            });
-
-            jsonGrid.addFinEventListener('fin-before-cell-edit', function(e) {
-                console.dir('fin-before-cell-edit', e);
-            });
-
-            jsonGrid.addFinEventListener('fin-after-cell-edit', function(e) {
-                console.dir('fin-after-cell-edit', e);
-            });
 
 
 
@@ -482,75 +517,17 @@
                 var client = new LightstreamerClient("https://push.lightstreamer.com","MARKETDEPTH");
                 client.connect();
 
-                var subscription = new Subscription("COMMAND","SF_TECH_BUYSIDE",["command", "key", "qty"]);
-                subscription.setRequestedSnapshot("yes");
+                var buySubscription = new Subscription("COMMAND",STOCK+"_BUYSIDE",["command", "key", "qty"]);
+                buySubscription.setRequestedSnapshot("yes");
+                buySubscription.addListener(buy);
 
-                if (!Array.prototype.findIndex) {
-                    Array.prototype.findIndex = function(predicate) {
-                    if (this == null) {
-                      throw new TypeError('Array.prototype.findIndex called on null or undefined');
-                    }
-                    if (typeof predicate !== 'function') {
-                      throw new TypeError('predicate must be a function');
-                    }
-                    var list = Object(this);
-                    var length = list.length >>> 0;
-                    var thisArg = arguments[1];
-                    var value;
+              /*  var sellSubscription = new Subscription("COMMAND",STOCK+"_SELLSIDE",["command", "key", "qty"]);
+                sellSubscription.setRequestedSnapshot("yes");
+                sellSubscription.addListener(sell);
+                */
 
-                    for (var i = 0; i < length; i++) {
-                      value = list[i];
-                      if (predicate.call(thisArg, value, i, list)) {
-                        return i;
-                      }
-                    }
-                    return -1;
-                  };
-                }
-
-                subscription.addListener({
-                   map: {},
-
-                   onItemUpdate: function(itemUpdate) {
-
-                      var command = itemUpdate.getValue("command");
-                      var key = Number(itemUpdate.getValue("key")); //make it anumber to help the sort
-                      var qty = itemUpdate.getValue("qty");
-
-                      switch(command) {
-                          case "UPDATE":
-                            if (this.map[key]) {
-                              this.map[key].qty = qty;
-                              break;
-                            }
-                            //else should not happen, let's do the ADD
-                          case "ADD":
-
-                            this.map[key] = {key: key, qty: qty};
-                            data.push(this.map[key]);
-                            break;
-                          case "DELETE":
-                            var index = data.findIndex(function(element) {
-                                return key == element.key;
-                            });
-                            if (index == -1) {
-                                //??
-                            } else {
-                                data.splice(index,1);
-                            }
-                            delete(this.map[key]);
-                            break;
-                      };
-
-                       data.sort(function(a,b) {
-                           return b.key - a.key;
-                       });
-
-                      jsonModel.changed();
-                   }
-                });
-
-                client.subscribe(subscription);
+                client.subscribe(buySubscription);
+                //client.subscribe(sellSubscription);
 
             });
 
