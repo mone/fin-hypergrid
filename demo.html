@@ -381,8 +381,7 @@
             //make the first row fixed;
             jsonModel.setFixedRowCount(1);
 
-            //sort ascending on the first column
-            jsonModel.toggleSort(1); //TODO other way round + numeric sort + dynamic sort
+            
 
             //all formatting and rendering per cell can be overridden in here
             cellProvider.getCell = function(config) {
@@ -515,7 +514,7 @@
                    onItemUpdate: function(itemUpdate) {
 
                       var command = itemUpdate.getValue("command");
-                      var key = itemUpdate.getValue("key");
+                      var key = Number(itemUpdate.getValue("key")); //make it anumber to help the sort
                       var qty = itemUpdate.getValue("qty");
 
                       switch(command) {
@@ -541,8 +540,11 @@
                             }
                             delete(this.map[key]);
                             break;
-                          default:
                       };
+
+                       data.sort(function(a,b) {
+                           return b.key - a.key;
+                       });
 
                       jsonModel.changed();
                    }
