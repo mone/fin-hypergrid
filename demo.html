@@ -377,8 +377,7 @@
     }
 
 
-  function MarketDepthGrid(grid,asc,columns) {
-    this.data = [];
+  function MarketDepthGrid(grid,sortConf,columns) {
     this.map = {};
 
     //get ahold of our json grid example
@@ -389,62 +388,66 @@
     this.jsonModel = jsonGrid.getBehavior();
 
 
+    var state = {
+        columnIndexes:[0,1],
+        fixedColumnIndexes:[],
+        hiddenColumns: [],
+        columnWidths: [52,69],
+        fixedColumnWidths: [],
+        rowHeights: {},
+        fixedRowHeights: {},
+        sorted: sortConf
+      };
+     this.jsonModel.setState(state);
+
+
     //get the cell cellProvider for altering cell renderers
     var cellProvider = this.jsonModel.getCellProvider();
 
 
      this.jsonModel.setColumns(columns);
 
+
     //set the actual json row objects
-    this.jsonModel.setData(this.data);
+    this.jsonModel.setData([]);
 
     //make the first row fixed;
     this.jsonModel.setFixedRowCount(1);
 
-    if (asc) {
-      this.sortFun = function(a,b) {
-        return a.key - b.key;
-      };
-    } else {
-      this.sortFun = function(a,b) {
-        return b.key - a.key;
-      };
-    }
+    
   }
 
   MarketDepthGrid.prototype = {
       onItemUpdate: function(itemUpdate) {
-
           var command = itemUpdate.getValue("command");
           var key = Number(itemUpdate.getValue("key")); //make it anumber to help the sort
           var qty = itemUpdate.getValue("qty");
-
           switch(command) {
               case "UPDATE":
                 if (this.map[key]) {
                   this.map[key].qty = qty;
+                  this.jsonModel.changed();
                   break;
                 }
-                //else should not happen, let's do the ADD
+                //else should not happen, let's do the ADD anyway
               case "ADD":
 
                 this.map[key] = {key: key, qty: qty};
-                this.data.push(this.map[key]);
+                this.jsonModel.data.push(this.map[key]);
+                this.jsonModel.dataModified();
                 break;
               case "DELETE":
-                var index = this.data.findIndex(function(element) {
+                var index = this.jsonModel.data.findIndex(function(element) {
                     return key == element.key;
                 });
                 if (index > -1) {
-                    this.data.splice(index,1);
+                    this.jsonModel.data.splice(index,1);
                 } //else ??
                 delete(this.map[key]);
+                this.jsonModel.dataModified();
                 break;
           };
 
-          this.data.sort(this.sortFun);
-
-          this.jsonModel.changed();
        }
   };
 
@@ -453,7 +456,7 @@
     (function(){
 
         var STOCK = "SF_TECH";
-        //STOCK = "OS_C";
+        STOCK = "OS_C";
 
 
         document.addEventListener('polymer-ready', function() {
@@ -461,8 +464,8 @@
             var qtyColumn = { title: 'Quantity', field: 'qty' };
             var priceColumn = { title: 'Price', field: 'key' };
 
-            var buy = new MarketDepthGrid('#buy-grid',false,[qtyColumn,priceColumn]);
-            var sell = new MarketDepthGrid('#sell-grid',true,[priceColumn,qtyColumn]);
+            var buy = new MarketDepthGrid('#buy-grid',[0,2],[qtyColumn,priceColumn]);
+            var sell = new MarketDepthGrid('#sell-grid',[1,0],[priceColumn,qtyColumn]);
 
 
             var tabs = document.getElementsByTagName('paper-tabs')[0];
