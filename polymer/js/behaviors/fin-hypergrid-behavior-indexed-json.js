@@ -144,7 +144,6 @@ if (!Array.prototype.findIndex) {
             if (!this.data || (keys = Object.keys(this.data)).length === 0) {
                 return [];
             }
-            console.log(Object.keys(this.data[keys[0]]));
             return Object.keys(this.data[keys[0]]);
         },
 
@@ -188,13 +187,9 @@ if (!Array.prototype.findIndex) {
         getValue: function(x, y) {
             var row = this.data[this.rows[y]];
             if (!row) {
-                console.log("why null row " + y + " -> " + this.rows[y])
                 return null;
             }
             var fields = this.getFields();
-            if (!row[fields[x]]) {
-                console.log("why null" + y)
-            }
             return row[fields[x]];
         },
 
@@ -296,7 +291,6 @@ if (!Array.prototype.findIndex) {
         },
 
         getRow: function(y) { //TODO who uses this?
-            console.log("getrow")
             return this.data[this.rows[y]];
         },
 
@@ -304,8 +298,10 @@ if (!Array.prototype.findIndex) {
         //key bound-methods
 
         addRow: function(key, row) {
+            if (!this.data[key]) { //just in case
+                this.rows.push(key);
+            }
             this.data[key] = row;
-            this.rows.push(key);
         },
 
         removeRow: function(key) {
@@ -317,6 +313,10 @@ if (!Array.prototype.findIndex) {
         },
 
         modifyRow: function(key, field, value) {
+            if (!this.data[key]) {
+                //just in case
+                this.addRow(key, {});
+            }
             this.data[key][field] = value;
         }
     });
