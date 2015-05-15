@@ -395,8 +395,7 @@
     //get it's table model
     this.jsonModel = jsonGrid.getBehavior();
 
-
-    var state = {
+    this.emptyState = {
         columnIndexes:[0,1],
         fixedColumnIndexes:[],
         hiddenColumns: [],
@@ -404,17 +403,18 @@
         fixedColumnWidths: [],
         rowHeights: {},
         fixedRowHeights: {},
-        sorted: sortConf
+        sorted: []
       };
-     this.jsonModel.setState(state);
 
+    this.sortedState = {};
+    for (var i in this.emptyState) {
+        this.sortedState[i] = this.emptyState[i];
+    }
+    this.sortedState.sorted = sortConf;
 
-    //get the cell cellProvider for altering cell renderers
-    var cellProvider = this.jsonModel.getCellProvider();
+    this.jsonModel.setState(this.emptyState);
 
-
-     this.jsonModel.setColumns(columns);
-
+    this.jsonModel.setColumns(columns);
 
     //set the actual json row objects
     this.jsonModel.setData([]);
@@ -426,10 +426,14 @@
   }
 
   MarketDepthGrid.prototype = {
+      onEndOfSnapshot: function() {
+        this.jsonModel.setState(this.sortedState);
+        this.jsonModel.dataModified();
+      },
       onItemUpdate: function(itemUpdate) {
           var command = itemUpdate.getValue("command");
           var key = Number(itemUpdate.getValue("key")); //make it anumber to help the sort
-          var qty = itemUpdate.getValue("qty");
+          var qty = Number(itemUpdate.getValue("qty"));
           switch(command) {
               case "UPDATE":
                 if (this.map[key]) {
@@ -456,7 +460,15 @@
                 break;
           };
 
-       }
+       },
+
+      onSubscription: function() {
+        this.jsonModel.setData([]); //reset data
+        this.jsonModel.setState(this.emptyState); //disable sorting while receiving the snapshot
+      },
+      onClearSnapshot: function(itemName,itemPos) {
+        this.jsonModel.setData([]); //reset data
+      }
   };
 
 
@@ -536,11 +548,24 @@
                 var buySubscription = new Subscription("COMMAND",STOCK+"_BUYSIDE",["command", "key", "qty"]);
                 buySubscription.setRequestedSnapshot("yes");
                 buySubscription.addListener(buy);
+                buySubscription.addListener({
+                     onItemLostUpdates: function () {
+                         // Unsubcribe and then subscribe again the Item in order that the snapshot restore the list.
+                         client.unsubscribe(buySubscription);
+                         client.subscribe(buySubscription);
+                     }
+                 });
 
                 var sellSubscription = new Subscription("COMMAND",STOCK+"_SELLSIDE",["command", "key", "qty"]);
                 sellSubscription.setRequestedSnapshot("yes");
                 sellSubscription.addListener(sell);
-
+                sellSubscription.addListener({
+                     onItemLostUpdates: function () {
+                         // Unsubcribe and then subscribe again the Item in order that the snapshot restore the list.
+                         client.unsubscribe(sellSubscription);
+                         client.subscribe(sellSubscription);
+                     }
+                 });
 
                 var stockSubscription = new Subscription("MERGE",STOCK,["short_description","reference_price","last","last_price","last_qty","trading_phase"])
                 stockSubscription.setRequestedSnapshot("yes");
