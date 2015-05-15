@@ -172,6 +172,14 @@
             <br>
           </div>
           <core-splitter direction="up"></core-splitter>
+          <div>
+            <div class="description" style="padding:15px">Lightstreamer is <span id="ls-status"></span></div>
+          </div>
+          <div flex class="rel">
+              <fin-hypergrid class="abs" id="stock-grid">
+                    <fin-hypergrid-behavior-json></fin-hypergrid-behavior-json>
+              </fin-hypergrid>
+          </div>
           <div horizontal layout flex>
               <div flex class="rel">
                 <fin-hypergrid class="abs" id="buy-grid">
@@ -353,7 +361,6 @@
 
     })();
 
-
   function MarketDepthGrid(grid,sortConf,columns) {
     //get ahold of our json grid example
     var jsonGrid = document.querySelector(grid);
@@ -418,6 +425,27 @@
 
         document.addEventListener('polymer-ready', function() {
 
+
+            var stockGrid = document.querySelector("#stock-grid");
+            var stockModel = stockGrid.getBehavior();
+            stockModel.setColumns([
+              { title: 'Stock Name', field: 'short_description' },
+              { title: 'Trading', field: 'trading_phase' },
+              { title: 'Reference Price', field: 'reference_price' },
+              { title: 'Last', field: 'last' },
+              { title: 'Last Price', field: 'last_price' },
+              { title: 'Last Quantity', field: 'last_qty' }
+            ]);
+            stockModel.setFixedRowCount(1);
+            stockModel.setData([{
+                short_description: "",
+                reference_price: "",
+                last: "",
+                last_price: "",
+                last_qty: ""
+            }]);
+
+
             var qtyColumn = { title: 'Quantity', field: 'qty' };
             var priceColumn = { title: 'Price', field: 'key' };
 
@@ -434,6 +462,27 @@
             require(["LightstreamerClient","Subscription"], function(LightstreamerClient,Subscription) {
 
                 var client = new LightstreamerClient("https://push.lightstreamer.com","MARKETDEPTH");
+                client.addListener({
+                    container: document.getElementById("ls-status"),
+                    onStatusChange: function(newStatus) {
+                        switch(newStatus) {
+                            case "CONNECTING":
+                            case "CONNECTED:STREAM-SENSE":
+                                this.container.textContent = "connecting";
+                                break;
+                            case "DISCONNECTED":
+                            case "DISCONNECTED:WILL-RETRY":
+                                this.container.textContent = "disconnected";
+                                break;
+                            case "CONNECTED:WS-STREAMING":
+                            case "CONNECTED:HTTP-STREAMING":
+                            case "CONNECTED:WS-POLLING":
+                            case "CONNECTED:HTTP-POLLING":
+                                this.container.textContent = "connected";
+                                break;
+                        }
+                    }
+                });
                 client.connect();
 
                 var buySubscription = new Subscription("COMMAND",STOCK+"_BUYSIDE",["command", "key", "qty"]);
@@ -460,8 +509,22 @@
                 });
 
 
+                var stockSubscription = new Subscription("MERGE",STOCK,["short_description","reference_price","last","last_price","last_qty","trading_phase"])
+                stockSubscription.setRequestedSnapshot("yes");
+                stockSubscription.addListener({
+                   onItemUpdate: function(itemUpdate) {
+                       itemUpdate.forEachChangedField(function(name,pos,value) {
+                           stockModel.data[0][name] = value;
+                           stockModel.changed();
+                       });
+                   }
+                });
+
+
+
                 client.subscribe(buySubscription);
                 client.subscribe(sellSubscription);
+                client.subscribe(stockSubscription);
 
             });
 
