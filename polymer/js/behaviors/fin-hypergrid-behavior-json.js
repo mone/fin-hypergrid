@@ -229,9 +229,6 @@ var validIdentifierMatch = /^(?!(?:abstract|boolean|break|byte|case|catch|char|c
                     for (i = 0; i < colIndexes.length; i++) {
                         if (colIndexes[i] === actualCol) {
                             this.toggleSort(i, 0);
-                            if (sorts[i] === 2) {
-                                this.data.reverse();
-                            }
                             return;
                         }
                     }
@@ -264,7 +261,7 @@ var validIdentifierMatch = /^(?!(?:abstract|boolean|break|byte|case|catch|char|c
                     newData[each.__si] = each;
                 }
                 this.data = newData;
-            } else if (sortStateIndex === 1) {
+            } else if (sortStateIndex > 0) {
                 if (this.isValidIdentifer(colName)) {
                     var theSorter = eval('(function (a, b) {' + /* jshint ignore:line  */
                         '  if (a.' + colName + ' === b.' + colName + ')' +
@@ -285,7 +282,8 @@ var validIdentifierMatch = /^(?!(?:abstract|boolean|break|byte|case|catch|char|c
                         return 1;
                     });
                 }
-            } else {
+            }
+            if (sortStateIndex === 2) {
                 this.data = this.data.reverse();
             }
             for (i = 0; i < this.data.length; i++) {
